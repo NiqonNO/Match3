@@ -9,10 +9,10 @@ public class Cell : MonoBehaviour, IPointerClickHandler
     [SerializeField] SpriteRenderer colorsr;
     [SerializeField] SpriteRenderer typesr;
     [SerializeField] SpriteRenderer selectionsr;
-    [HideInInspector] public CellColor color;
+    [HideInInspector] public int color;
     [HideInInspector] public CellType type;
     [HideInInspector] public Coordinates coordinates;
-    int moveDistance = 0;
+    int moveDistance = 0; //distance to move when tweening position
 
     public void OnPointerClick(PointerEventData pointerEventData)
     {
@@ -35,16 +35,16 @@ public class Cell : MonoBehaviour, IPointerClickHandler
     {
         this.gm = gm;
         this.coordinates = coordinates;
-        SetColor(Random.Range(0, 6));
+        SetColor(Random.Range(0, gm.data.cellColors.Length));
         float rand = Random.Range(0f, 100f);
-        SetType(rand < 90 ? 0 : rand < 95 ? 1 : 2);
+        SetType(rand < gm.data.GetStandardCellChance ? 0 : rand < gm.data.GetBombCellChance ? 1 : 2);
     }
-    public void ReInitialize(float offsetY, int order)
+    public void ReInitialize(float offsetY, int order) //used to reuse cell after destroying
     {
         coordinates.y = gm.data.sizeY + order;
-        SetColor(Random.Range(0, 6));
+        SetColor(Random.Range(0, gm.data.cellColors.Length));
         float rand = Random.Range(0f, 100f);
-        SetType(rand < 90 ? 0 : rand < 95 ? 1 : 2);
+        SetType(rand < gm.data.GetStandardCellChance ? 0 : rand < gm.data.GetBombCellChance ? 1 : 2);
         transform.localScale = Vector3.one;
         transform.localPosition = new Vector3(transform.localPosition.x, offsetY * (gm.data.sizeY + order), 0);
     }
@@ -107,28 +107,17 @@ public class Cell : MonoBehaviour, IPointerClickHandler
     {
         selectionsr.enabled = active;
     }
-    public bool ContainsNeighbor4(Cell cell)
+    public bool ContainsNeighbor4(Cell cell) //check if cell is neighbor, but is not diagonal
     {
         if (coordinates.DistanceTo(cell.coordinates)==1)
             return true;
         return false;
-        /*Direction d = Direction.S;
-        do
-        {
-            d = d.Next2();
-            if (neighbors[(int)d] == cell)
-                return true;
-        } while (d != Direction.S);
-        return false;*/
     }
-    public void SwitchPosition(Cell cell)
+    public void SwitchPosition(Cell cell) //switch position with other cell
     {
         Coordinates contCoor = coordinates;
         coordinates = cell.coordinates;
         cell.coordinates = contCoor;
-
-        /*UpdateNeighbors();
-        cell.UpdateNeighbors();*/
     }
     public void AddMoveStep()
     {
@@ -140,12 +129,17 @@ public class Cell : MonoBehaviour, IPointerClickHandler
     }
     public void MoveDown(float offset)
     {
-        StartCoroutine("Move", offset);
+        if (moveDistance == 0)
+            return;
+
+        LeanTween.moveLocalY(gameObject, transform.localPosition.y - (offset * moveDistance), gm.data.animationDuration * moveDistance).setEase(LeanTweenType.easeOutBounce).setOnComplete(CheckCombo);
+        coordinates.y -= moveDistance;
+        moveDistance = 0;
     }
 
     private void SetColor(int idx)
     {
-        color = (CellColor)idx;
+        color = idx;
         colorsr.color = gm.data.cellColors[idx];
     }
     private void SetType(int idx)
@@ -153,15 +147,8 @@ public class Cell : MonoBehaviour, IPointerClickHandler
         type = (CellType)idx;
         typesr.sprite = (idx == 1) ? gm.data.bombPowerUp : (idx == 2) ? gm.data.colorPowerUp : null;
     }
-
-    private IEnumerator Move(float offset)
+    private void CheckCombo() //check if there is match after moving 
     {
-        LeanTween.moveLocalY(gameObject, transform.localPosition.y - (offset * moveDistance), gm.data.animationDuration * moveDistance);
-        coordinates.y -= moveDistance;
-        moveDistance = 0;
-
-        yield return new WaitForSeconds(gm.data.animationDuration * moveDistance);
-
         if (gm.CheckColors(this))
         {
             gm.DestroyCombo();

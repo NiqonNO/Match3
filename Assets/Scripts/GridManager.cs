@@ -6,28 +6,32 @@ public class GridManager : MonoBehaviour
 {
     public DataConfig data;
     [SerializeField] Cell cellPrefab;
+    [SerializeField] AudioManager am;
 
-    Cell[] cellGrid;
+    Cell[] cellGrid; //every cell in grid
     Cell selectedCell = null;
-    List<Cell>[] cellsToDestroy;
-    float offset;
+    List<Cell>[] cellsToDestroy; // cells lists to destroy, for every x coordinate
+    float offset; //size of cells
     bool combo = false;
+    bool blockInput = false;
 
     private void Awake()
     {
+        LeanTween.init(data.sizeX * data.sizeY);
         cellGrid = new Cell[data.sizeX * data.sizeY];
-        cellsToDestroy = new List<Cell>[data.sizeX];
+        cellsToDestroy = new List<Cell>[data.sizeX]; 
 
         offset = cellPrefab.GetComponent<SpriteRenderer>().bounds.size.x;
-        transform.position = new Vector3(-offset * (data.sizeX - 1) / 2f, -offset * (data.sizeY - 1) / 2f, 0);
+        transform.position = new Vector3(-offset * (data.sizeX - 1) / 2f, -offset * (data.sizeY - 1) / 2f, 0); // move grid so spawning cells start at 0,0
 
         InitializeGrid();
     }
     private void Update()
     {
-        if(combo && LeanTween.tweensRunning == 0)
+        // if combo is matched, wait for end of tweening so cells don't alter if they are alredy moving
+        if (combo && LeanTween.tweensRunning == 0)
         {
-            StartCoroutine("DestroyCells");
+            StartCoroutine("DestroyAndMoveCells");
             combo = false;
         }
     }
@@ -42,84 +46,21 @@ public class GridManager : MonoBehaviour
                 Vector3 position = transform.TransformPoint(new Vector3(offset * x, offset * y, 0));
                 cellGrid[idx] = Instantiate(cellPrefab, position, Quaternion.identity, transform);
                 cellGrid[idx].Initialize(this, new Coordinates(x, y));
-                /*if (x != 0)
-                {
-                    int neighborIdx = (x - 1) + (y * data.sizeX);
-                    cellGrid[idx].SetNeighbor(Direction.W, cellGrid[neighborIdx]);
-                    if (y != 0)
-                    {
-                        neighborIdx = (x - 1) + ((y - 1) * data.sizeX);
-                        cellGrid[idx].SetNeighbor(Direction.SW, cellGrid[neighborIdx]);
-                    }
-                }
-                if (y != 0)
-                {
-                    int neighborIdx = x + ((y - 1) * data.sizeX);
-                    cellGrid[idx].SetNeighbor(Direction.S, cellGrid[neighborIdx]);
-                    if (x != data.sizeX - 1)
-                    {
-                        neighborIdx = (x + 1) + ((y - 1) * data.sizeX);
-                        cellGrid[idx].SetNeighbor(Direction.SE, cellGrid[neighborIdx]);
-                    }
-                }*/
-
             }
         }
-    }
-    public bool CheckColors(Cell cell)
-    {
-        List<Cell> matchingCells = new List<Cell>();
-        List<Cell> matchingCellsHorizontal = new List<Cell>();
-        List<Cell> matchingCellsVertical = new List<Cell>();
-
-        Cell neighbor = cell.GetNeighbor(Direction.E);//.neighbors[(int)Direction.E];
-        if (neighbor != null && neighbor.color == cell.color)
-            matchingCellsHorizontal.AddRange(CheckColorsInLine(neighbor, Direction.E));
-        neighbor = cell.GetNeighbor(Direction.W);//.neighbors[(int)Direction.W];
-        if (neighbor != null && neighbor.color == cell.color)
-            matchingCellsHorizontal.AddRange(CheckColorsInLine(neighbor, Direction.W));
-        if (matchingCellsHorizontal.Count < 2)
-            matchingCellsHorizontal.Clear();
-
-        neighbor = cell.GetNeighbor(Direction.N);//.neighbors[(int)Direction.N];
-        if (neighbor != null && neighbor.color == cell.color)
-            matchingCellsVertical.AddRange(CheckColorsInLine(neighbor, Direction.N));
-        neighbor = cell.GetNeighbor(Direction.S);//.neighbors[(int)Direction.S];
-        if (neighbor != null && neighbor.color == cell.color)
-            matchingCellsVertical.AddRange(CheckColorsInLine(neighbor, Direction.S));
-        if (matchingCellsVertical.Count < 2)
-            matchingCellsVertical.Clear();
-
-        matchingCells.AddRange(matchingCellsHorizontal);
-        matchingCells.AddRange(matchingCellsVertical);
-
-        if (matchingCells.Count > 0)
-        {
-            matchingCells.Add(cell);
-            for (int i = 0; i < matchingCells.Count; i++)
-            {
-                AddToDestroy(matchingCells[i]);
-            }
-            return true;
-        }
-        return false;
     }
     private List<Cell> CheckColorsInLine(Cell cell, Direction direction)
     {
         List<Cell> matchingCells = new List<Cell>();
         matchingCells.Add(cell);
 
-        Cell neighbor = cell.GetNeighbor(direction);//.neighbors[(int)direction];
+        Cell neighbor = cell.GetNeighbor(direction);
         if (neighbor == null)
             return matchingCells;
         if (neighbor.color == cell.color)
             matchingCells.AddRange(CheckColorsInLine(neighbor, direction));
 
         return matchingCells;
-    }
-    private void UpdateColumns()
-    {
-
     }
     private void CheckForPowerUp(Cell cell)
     {
@@ -151,7 +92,7 @@ public class GridManager : MonoBehaviour
             AddToDestroy(neighbor);
         }
     }
-    private void AddColorToDestroy(CellColor color)
+    private void AddColorToDestroy(int color)
     {
         for(int i =0; i < cellGrid.Length; i++)
         {
@@ -164,6 +105,7 @@ public class GridManager : MonoBehaviour
         if (cellsToDestroy[cell.coordinates.x] is null)
             cellsToDestroy[cell.coordinates.x] = new List<Cell>();
 
+        //check if cell is alredy in list
         if (!cellsToDestroy[cell.coordinates.x].Contains(cell))
         {
             cellsToDestroy[cell.coordinates.x].Add(cell);
@@ -171,13 +113,55 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    public bool CheckColors(Cell cell)
+    {
+        List<Cell> matchingCells = new List<Cell>();
+        List<Cell> matchingCellsHorizontal = new List<Cell>();
+        List<Cell> matchingCellsVertical = new List<Cell>();
+
+        //check horizontal
+        Cell neighbor = cell.GetNeighbor(Direction.E);
+        if (neighbor != null && neighbor.color == cell.color)
+            matchingCellsHorizontal.AddRange(CheckColorsInLine(neighbor, Direction.E));
+        neighbor = cell.GetNeighbor(Direction.W);
+        if (neighbor != null && neighbor.color == cell.color)
+            matchingCellsHorizontal.AddRange(CheckColorsInLine(neighbor, Direction.W));
+        if (matchingCellsHorizontal.Count < 2)
+            matchingCellsHorizontal.Clear();
+
+        //check vertical
+        neighbor = cell.GetNeighbor(Direction.N);
+        if (neighbor != null && neighbor.color == cell.color)
+            matchingCellsVertical.AddRange(CheckColorsInLine(neighbor, Direction.N));
+        neighbor = cell.GetNeighbor(Direction.S);
+        if (neighbor != null && neighbor.color == cell.color)
+            matchingCellsVertical.AddRange(CheckColorsInLine(neighbor, Direction.S));
+        if (matchingCellsVertical.Count < 2)
+            matchingCellsVertical.Clear();
+
+        matchingCells.AddRange(matchingCellsHorizontal);
+        matchingCells.AddRange(matchingCellsVertical);
+
+        if (matchingCells.Count > 0)
+        {
+            matchingCells.Add(cell);
+            for (int i = 0; i < matchingCells.Count; i++)
+            {
+                AddToDestroy(matchingCells[i]); // don't add directly, check if cell is alredy in list first
+            }
+            return true;
+        }
+        return false;
+    }
     public void SelectCell(Cell cell)
     {
-        if (LeanTween.tweensRunning != 0)
+        // block input when cells are in move
+        if (LeanTween.tweensRunning != 0 || blockInput)
             return;
 
         if (selectedCell == null)
         {
+            am.PlaySelect();
             selectedCell = cell;
             selectedCell.Highlight(true);
         }
@@ -192,6 +176,7 @@ public class GridManager : MonoBehaviour
                 StartCoroutine("DoCheck", cell);
             else
             {
+                am.PlaySelect();
                 selectedCell.Highlight(false);
                 selectedCell = cell;
                 selectedCell.Highlight(true);
@@ -213,10 +198,14 @@ public class GridManager : MonoBehaviour
     public void DestroyCombo()
     {
         combo = true;
+        blockInput = true;
     }
 
     private IEnumerator DoCheck(Cell cell)
     {
+        am.PlaySwap();
+        blockInput = true;
+        //Switch cells position, coordinates and index for easier comparision.
         selectedCell.Highlight(false);
         LeanTween.move(selectedCell.gameObject, cell.transform.position, data.animationDuration);
         LeanTween.move(cell.gameObject, selectedCell.transform.position, data.animationDuration);
@@ -226,14 +215,16 @@ public class GridManager : MonoBehaviour
         selectedCell.SwitchPosition(cell);
         yield return new WaitForSeconds(data.animationDuration);
 
+        //Check both cells match
         bool match = CheckColors(selectedCell);
         if (CheckColors(cell) || match)
         {
-            StartCoroutine("DestroyCells");
+            StartCoroutine("DestroyAndMoveCells");
             selectedCell = null;
             yield break;
         }
 
+        //Switch cells back.
         LeanTween.move(selectedCell.gameObject, cell.transform.position, data.animationDuration);
         LeanTween.move(cell.gameObject, selectedCell.transform.position, data.animationDuration);
 
@@ -242,13 +233,16 @@ public class GridManager : MonoBehaviour
         selectedCell.SwitchPosition(cell);
         yield return new WaitForSeconds(data.animationDuration);
         selectedCell = null;
+        blockInput = false;
     }
-    public IEnumerator DestroyCells()
+    private IEnumerator DestroyAndMoveCells()
     {
+        blockInput = true;
         List<Cell> cellsToMove = new List<Cell>();
         int[][] destroyedCountPerColumn = new int[2][];
-        destroyedCountPerColumn[0] = new int[data.sizeX];
-        destroyedCountPerColumn[1] = new int[data.sizeX];
+        destroyedCountPerColumn[0] = new int[data.sizeX]; // Contains info how much move object down (+ value from seccond array)
+        destroyedCountPerColumn[1] = new int[data.sizeX]; // How much to move up so cells don't start from the same y position
+        am.PlayClear();
         for (int i = 0; i < cellsToDestroy.Length; i++)
         {
             if (cellsToDestroy[i] is null)
@@ -256,18 +250,19 @@ public class GridManager : MonoBehaviour
 
             for (int j = 0; j < cellsToDestroy[i].Count; j++)
             {
-                LeanTween.scale(cellsToDestroy[i][j].gameObject, Vector3.zero, data.animationDuration);
+                LeanTween.scale(cellsToDestroy[i][j].gameObject, Vector3.one * 0.025f, data.animationDuration).setEase(LeanTweenType.easeInBack);
                 destroyedCountPerColumn[0][cellsToDestroy[i][j].coordinates.x]++;
-                for (int k = cellsToDestroy[i][j].coordinates.y+1; k < data.sizeY; k++)
+                for (int k = cellsToDestroy[i][j].coordinates.y+1; k < data.sizeY; k++) // add cells above destroyed cell to move, and +1 move step for every destroyed cell below
                 {
-                    cellsToMove.Add(GetCell(cellsToDestroy[i][j].coordinates.x, k));
-                    cellsToMove[cellsToMove.Count-1].AddMoveStep();
+                    Cell cell = GetCell(cellsToDestroy[i][j].coordinates.x, k);
+                    if (!cellsToMove.Contains(cell))
+                        cellsToMove.Add(cell);
+                    cell.AddMoveStep();
                 }
             }
         }
-        Debug.Log("Before");
-        yield return new WaitForSeconds(data.animationDuration);
-        Debug.Log("After");
+        yield return new WaitForSeconds(data.animationDuration); // wait until scaling end
+
         for (int i = 0; i < cellsToDestroy.Length; i++)
         {
             if (cellsToDestroy[i] is null)
@@ -275,20 +270,22 @@ public class GridManager : MonoBehaviour
 
             for (int j = 0; j < cellsToDestroy[i].Count; j++)
             {
+                //reinitialize destroyed cell, and set move step for moving it down
                 cellsToDestroy[i][j].SetMoveStep(destroyedCountPerColumn[0][cellsToDestroy[i][j].coordinates.x] + destroyedCountPerColumn[1][cellsToDestroy[i][j].coordinates.x]);
                 cellsToDestroy[i][j].ReInitialize(offset, destroyedCountPerColumn[1][cellsToDestroy[i][j].coordinates.x]);
-                cellsToMove.Add(cellsToDestroy[i][j]);
+                if (!cellsToMove.Contains(cellsToDestroy[i][j]))
+                    cellsToMove.Add(cellsToDestroy[i][j]);
                 destroyedCountPerColumn[0][cellsToDestroy[i][j].coordinates.x]--;
                 destroyedCountPerColumn[1][cellsToDestroy[i][j].coordinates.x]++;
             }
         }
+        // move cells down
         for (int i = 0; i < cellsToMove.Count; i++)
         {
             cellsToMove[i].MoveDown(offset);
             cellGrid[GetCellIdx(cellsToMove[i].coordinates)] = cellsToMove[i];
         }
-        Debug.Log("After2");
         cellsToDestroy = new List<Cell>[data.sizeX];
-        Debug.Log("After3");
+        blockInput = false;
     }
 }

@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa7c7d1a1d3b57b48b728d7db0919b2a, type: 3}
+  m_Name: Audio
+  m_EditorClassIdentifier: 
+  backgroundMusic: {fileID: 8300000, guid: ebac80d036915b54094138b7e7cd5922, type: 3}
+  backgroundMusicVolume: 0.5
+  clearSound: {fileID: 8300000, guid: 4b4043ea4a208e44f9ceb6db860a42ea, type: 3}
+  clearSoundVolume: 1
+  selectSound: {fileID: 8300000, guid: 567376b80e0350040a86dbd342b02319, type: 3}
+  selectSoundVolume: 1
+  swapSound: {fileID: 8300000, guid: 03aa09522745ddc4fa23a5fe46484274, type: 3}
+  swapSoundVolume: 1
